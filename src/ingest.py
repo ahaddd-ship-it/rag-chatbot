@@ -1,13 +1,19 @@
 """Document ingestion pipeline for RAG chatbot."""
 
 import os
-from typing import List
+import hashlib
+from pathlib import Path
 
+from langchain_community.document_loaders import PyPDFLoader, TextLoader
+from langchain_chroma import Chroma
 from langchain_core.documents import Document
-from langchain_community.document_loaders import TextLoader, PyPDFLoader
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
+
+try:
+    from src import config
+except ModuleNotFoundError:
+    import config
 
 
 def load_document(filepath: str) -> list:
@@ -59,21 +65,32 @@ def embed_and_store(chunks: list, persist_dir: str) -> int:
     Returns:
         Number of chunks embedded.
     """
-    # Create embeddings using HuggingFace all-MiniLM-L6-v2
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2",
+    persist_path = Path(persist_dir)
+    persist_path.mkdir(parents=True, exist_ok=True)
+    embeddings = HuggingFaceEmbeddings(model_name=config.EMBEDDING_MODEL)
+    vectorstore = Chroma(
+        collection_name=config.CHROMA_COLLECTION,
+        persist_directory=str(persist_path),
+        embedding_function=embeddings,
     )
 
-    # In newer LangChain versions, chunks are dictionaries with 'page_content' key
-    # Extract page contents from chunks
-    docs = [Document(page_content=chunk.page_content) for chunk in chunks]
+    source = str(Path(chunks[0].metadata["source"]).resolve()) if chunks else ""
+    if source:
+        vectorstore.delete(where={"source": source})
 
-    # Create and persist Chroma vector store
-    vectorstore = Chroma.from_documents(
-        documents=docs,
-        embedding=embeddings,
-        persist_directory=persist_dir,
-    )
+    ids = []
+    docs = []
+    for index, chunk in enumerate(chunks):
+        metadata = dict(chunk.metadata)
+        metadata["source"] = source
+        docs.append(Document(page_content=chunk.page_content, metadata=metadata))
+        digest = hashlib.sha256(
+            f"{source}:{index}:{chunk.page_content}".encode("utf-8")
+        ).hexdigest()
+        ids.append(digest)
+
+    if docs:
+        vectorstore.add_documents(documents=docs, ids=ids)
 
     return len(chunks)
 
@@ -102,6 +119,8 @@ def ingest_document(filepath: str, persist_dir: str, chunk_size: int = 500, over
 
     # Embed and store
     print(f"Embedding and storing in {persist_dir}...")
+    for chunk in chunks:
+        chunk.metadata.setdefault("source", filepath)
     num_chunks = embed_and_store(chunks, persist_dir)
     print(f"\nSuccessfully embedded {num_chunks} chunks!")
 
@@ -110,10 +129,10 @@ def ingest_document(filepath: str, persist_dir: str, chunk_size: int = 500, over
 
 if __name__ == "__main__":
     # Default document path
-    doc_path = os.path.join(os.path.dirname(__file__), "..", "data", "sample_document.txt")
+    doc_path = config.DATA_DIR / config.DOC_FILE
 
     # Ensure data directory exists
     os.makedirs(os.path.dirname(doc_path), exist_ok=True)
 
     # Run ingestion
-    num_chunks = ingest_document(doc_path, "chroma_db")
+    num_chunks = ingest_document(str(doc_path), str(config.CHROMA_PERSIST_DIR), config.CHUNK_SIZE, config.OVERLAP)

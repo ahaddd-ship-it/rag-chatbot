@@ -1,12 +1,18 @@
 """RAG Chatbot - Main entry point."""
 
 import os
-from src.chatbot import chat
+
+try:
+    from src import config
+    from src.chatbot import chat
+except ModuleNotFoundError:
+    import config
+    from chatbot import chat
 
 
 def main():
     """Run the RAG chatbot."""
-    persist_dir = os.path.join(os.path.dirname(__file__), "..", "chroma_db")
+    persist_dir = config.CHROMA_PERSIST_DIR
 
     print("=" * 50)
     print("RAG Chatbot - Welcome!")
@@ -28,6 +34,9 @@ def main():
 
             print(f"\nChatbot: {response}")
             print()
+
+        except Exception as error:
+            print(f"\nChatbot error: {error}")
 
         except KeyboardInterrupt:
             print("\n\nChatbot: Goodbye!")
