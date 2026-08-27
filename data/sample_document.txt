@@ -1,0 +1,16 @@
+Welcome to the RAG Chatbot Project!
+
+This is a sample document used to test the document ingestion pipeline. The purpose of this project is to demonstrate how to build a Retrieval-Augmented Generation (RAG) system using LangChain and Chroma vector store.
+
+A RAG system combines retrieval capabilities with generative AI to provide context-aware responses. Instead of relying solely on the model's training data, RAG systems retrieve relevant information from external sources before generating answers. This approach improves accuracy and allows the system to stay up-to-date with current information.
+
+The typical RAG workflow involves three main steps:
+1. Indexing: Documents are processed, split into chunks, embedded, and stored in a vector database.
+2. Retrieval: When a user asks a question, the system searches for relevant vectors in the database.
+3. Generation: The retrieved context is combined with the query and sent to an LLM for response generation.
+
+In this project, we use ChromaDB as our vector store because it's lightweight, easy to deploy, and supports persistence. We'll also use sentence-transformers/all-MiniLM-L6-v2 for text embeddings, which provides fast and accurate semantic similarity.
+
+The document ingestion script (ingest.py) handles loading documents from various formats (PDF, TXT, MD), splitting them into manageable chunks with overlap, embedding the text, and persisting the results to the chroma_db directory.
+
+This sample document contains information about RAG systems that can be used to test retrieval and generation capabilities once you integrate an LLM.
