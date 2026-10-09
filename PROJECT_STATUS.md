@@ -2,7 +2,7 @@
 
 ## Current status
 
-The project now includes a retrieval-first RAG pipeline that ingests documents, stores embeddings in Chroma, and returns source-aware context with citations. The generation layer is intentionally placeholder-based and not connected to a live LLM provider yet.
+The project includes a retrieval-first RAG pipeline that ingests documents, stores embeddings in Chroma, and returns source-aware context with citations. Google Gemini generation is available when `GEMINI_API_KEY` is configured; otherwise the app remains in offline retrieval mode.
 
 ### Implemented
 
@@ -11,7 +11,7 @@ The project now includes a retrieval-first RAG pipeline that ingests documents, 
 - manifest-based skip logic for unchanged files
 - configurable chunk size, overlap, top-k, and similarity threshold
 - source citations and retrieval metadata in the response payload
-- placeholder `generate_response()` for future provider integration
+- isolated `generate_response()` with Google Gemini integration and offline fallback
 - chat-history structure ready for later LLM calls
 - `.env` loading via `python-dotenv`
 - Streamlit UI for uploading docs and asking questions
@@ -19,9 +19,7 @@ The project now includes a retrieval-first RAG pipeline that ingests documents, 
 
 ### Pending / intentionally deferred
 
-- real LLM provider connection
-- API key validation and provider-specific handling
-- provider-specific response generation and streaming
+- streaming responses
 - broader production hardening beyond the current placeholder flow
 
 ## Files
@@ -54,8 +52,8 @@ rag-chatbot/
 
 - ingestion metadata tests pass
 - retrieval threshold logic is in place and can be exercised by the project tests
-- the placeholder response remains isolated from any provider-specific code
+- Gemini calls are isolated from retrieval and covered by a fake-client test
 
 ## Next step
 
-Add a real LLM provider behind `generate_response()` once the API key and target model are ready, keeping all provider-specific work isolated to that function.
+Configure `GEMINI_API_KEY` in a local ignored `.env` file to enable Gemini generation. Keep provider-specific changes isolated to `generate_response()`.

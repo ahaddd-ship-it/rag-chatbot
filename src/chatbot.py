@@ -34,12 +34,34 @@ def get_vector_store(persist_dir=None) -> Chroma:
 
 
 def generate_response(query: str, context: str, system_prompt: str) -> str:
-    """Return a placeholder until a provider is selected and configured."""
+    """Generate a Gemini response, or use the offline placeholder without a key."""
     if not context.strip():
-        return "[LLM not yet connected] No relevant context was found for this query."
+        return "[No relevant context was found for this query.]"
 
-    # TODO: Insert the provider-specific API call here when the key and model are provided.
-    return f"[LLM not yet connected] Retrieved context:\n{context}"
+    if not config.GEMINI_API_KEY:
+        return f"[LLM not connected] Retrieved context:\n{context}"
+
+    try:
+        from google import genai
+    except ImportError as exc:
+        raise RuntimeError(
+            "Gemini support is not installed. Install dependencies from requirements.txt."
+        ) from exc
+
+    try:
+        client = genai.Client(api_key=config.GEMINI_API_KEY)
+        interaction = client.interactions.create(
+            model=config.GEMINI_MODEL,
+            system_instruction=system_prompt,
+            input=f"Question: {query}\n\nRetrieved context:\n{context}",
+        )
+        response = interaction.output_text
+    except Exception as exc:
+        raise RuntimeError(f"Gemini request failed: {exc}") from exc
+
+    if not response:
+        raise RuntimeError("Gemini returned an empty response.")
+    return response
 
 
 def retrieve_context(

@@ -24,3 +24,5 @@ DEFAULT_SYSTEM_PROMPT = os.getenv(
     "RAG_SYSTEM_PROMPT",
     "You are a helpful assistant. Answer using the retrieved source context only.",
 )
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")

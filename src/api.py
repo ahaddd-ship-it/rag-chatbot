@@ -63,3 +63,5 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
         return ChatResponse(**result)
     except (FileNotFoundError, ValueError) as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
+    except RuntimeError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error

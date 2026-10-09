@@ -2,7 +2,7 @@
 
 This project is a retrieval-first chatbot built with LangChain and ChromaDB. It ingests text and PDF documents, chunks and embeds them, and retrieves the most relevant passages for a user query.
 
-The current version intentionally does not call a real LLM yet. The `generate_response()` placeholder is isolated and ready to be connected to an API later once the key and provider are provided.
+Generation uses Google Gemini when `GEMINI_API_KEY` is configured. Without a key, the application remains usable in offline retrieval mode and returns the retrieved context through a clearly labeled fallback.
 
 ## What it does
 
@@ -52,7 +52,7 @@ streamlit run streamlit_app.py
 
 The project supports `RAG_*` settings and loads `.env` automatically via `python-dotenv`.
 
-The template includes a placeholder for `GROQ_API_KEY`, but the actual LLM integration is intentionally deferred and not used yet.
+The template includes `GEMINI_API_KEY=your_key_here`. Keep the real key only in the ignored `.env` file or another secret manager.
 
 ## API usage
 
@@ -102,9 +102,9 @@ rag-chatbot/
 
 ## Notes
 
-- The application is retrieval-first and intentionally does not include a provider-specific LLM call yet.
-- `generate_response()` is the single injection point for the future API call.
-- The actual LLM provider, key handling, and runtime model call will be added in a later phase.
+- `generate_response()` is the single provider boundary for Gemini generation.
+- Missing keys use offline retrieval mode; provider failures are surfaced as API errors.
+- Do not commit `.env` or paste real API keys into source files.
 
 ## License
 
