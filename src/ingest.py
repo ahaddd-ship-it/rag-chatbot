@@ -5,11 +5,11 @@ import json
 import os
 from pathlib import Path
 
-from langchain_community.document_loaders import PyPDFLoader, TextLoader
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from pypdf import PdfReader
 
 try:
     from src import config
@@ -50,10 +50,21 @@ def load_document(filepath: str) -> list:
 
     try:
         if ext == ".pdf":
-            loader = PyPDFLoader(str(path))
+            reader = PdfReader(str(path))
+            documents = [
+                Document(
+                    page_content=page.extract_text() or "",
+                    metadata={"source": str(path), "page": page_number},
+                )
+                for page_number, page in enumerate(reader.pages, start=1)
+            ]
         else:
-            loader = TextLoader(str(path), encoding="utf-8")
-        documents = loader.load()
+            documents = [
+                Document(
+                    page_content=path.read_text(encoding="utf-8"),
+                    metadata={"source": str(path)},
+                )
+            ]
     except Exception as exc:  # pragma: no cover - exercised via integration tests
         raise ValueError(f"Failed to read document '{path}': {exc}") from exc
 

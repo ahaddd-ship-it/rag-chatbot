@@ -1,67 +1,110 @@
 # RAG Chatbot Project
 
-A simple Retrieval-Augmented Generation (RAG) chatbot that ingests documents into a Chroma vector store.
+This project is a retrieval-first chatbot built with LangChain and ChromaDB. It ingests text and PDF documents, chunks and embeds them, and retrieves the most relevant passages for a user query.
 
-## Features
+The current version intentionally does not call a real LLM yet. The `generate_response()` placeholder is isolated and ready to be connected to an API later once the key and provider are provided.
 
-- Load documents from TXT, PDF, or Markdown files
-- Split documents into chunks with configurable size and overlap
-- Generate embeddings using `sentence-transformers/all-MiniLM-L6-v2`
-- Persist vector data in ChromaDB with deterministic, source-based chunk IDs
-- Retrieve context through a model-agnostic API ready for future LLM integration
+## What it does
+
+- loads `.txt`, `.md`, and `.pdf` files from the `data/` folder
+- splits documents into chunks with configurable overlap
+- persists chunk metadata including source and page provenance
+- stores chunks in a local Chroma vector database
+- retrieves relevant chunks with a configurable similarity threshold
+- returns source citations and a future-ready chat history structure
+- exposes a FastAPI endpoint and a Streamlit interface
 
 ## Setup
 
-1. Install dependencies in a virtual environment:
-   ```bash
-   pip install -r requirements.txt
-   ```
+1. Create and activate a virtual environment.
+2. Install dependencies:
 
-2. Place a document (TXT, PDF, or MD) in the `data/` directory
+```bash
+pip install -r requirements.txt
+```
 
-3. Run the ingestion script:
-   ```bash
-   python src/ingest.py
-   ```
+3. Copy the environment template and fill in any future keys if needed:
 
-4. Start the API:
-   ```bash
-   uvicorn src.api:app --reload
-   ```
+```bash
+copy .env.example .env
+```
 
-The vector store is persisted in `chroma_db/`. Re-ingesting the same source replaces
-its existing chunks instead of duplicating them. Runtime settings can be overridden
-with `RAG_*` environment variables.
+4. Put documents in `data/`.
+5. Run ingestion:
 
-## API
+```bash
+python src/ingest.py
+```
 
-`GET /health` reports whether the service has a persisted vector-store directory.
+6. Start the API:
 
-`POST /chat` accepts a JSON body and returns retrieved context and source metadata:
+```bash
+uvicorn src.api:app --reload
+```
+
+7. Or run the Streamlit UI:
+
+```bash
+streamlit run streamlit_app.py
+```
+
+## Environment variables
+
+The project supports `RAG_*` settings and loads `.env` automatically via `python-dotenv`.
+
+The template includes a placeholder for `GROQ_API_KEY`, but the actual LLM integration is intentionally deferred and not used yet.
+
+## API usage
+
+`GET /health` checks whether the vector store directory exists.
+
+`POST /chat` accepts a JSON payload such as:
 
 ```json
-{"question": "What is RAG?"}
+{"question": "What is RAG?", "top_k": 3, "similarity_threshold": 0.75}
 ```
 
-```json
-{"question": "What is RAG?", "context": "...", "sources": [".../sample_document.txt"]}
-```
+The response includes:
 
-## Project Structure
+- `question`
+- `context`
+- `sources`
+- `citations`
+- `relevant_found`
+- `response`
+- `chat_history`
 
-```
+## Project structure
+
+```text
 rag-chatbot/
-├── data/              # Input documents
+├── data/
 ├── src/
-│   ├── ingest.py      # Document ingestion pipeline
-│   ├── chatbot.py     # Retrieval service
-│   ├── api.py         # FastAPI application
-│   ├── main.py        # Optional CLI retrieval entry point
-│   └── config.py      # Environment-backed settings
-├── chroma_db/         # Persisted vector store (gitignored)
-├── requirements.txt   # Python dependencies
-└── README.md          # This file
+│   ├── api.py
+│   ├── chatbot.py
+│   ├── config.py
+│   ├── ingest.py
+│   ├── main.py
+│   └── __init__.py
+├── tests/
+│   ├── test_ingest.py
+│   └── test_chatbot.py
+├── .env.example
+├── .gitignore
+├── chroma_db/
+├── requirements.txt
+├── README.md
+├── PROJECT_STATUS.md
+├── streamlit_app.py
+├── eval_rag.py
+└── .env
 ```
+
+## Notes
+
+- The application is retrieval-first and intentionally does not include a provider-specific LLM call yet.
+- `generate_response()` is the single injection point for the future API call.
+- The actual LLM provider, key handling, and runtime model call will be added in a later phase.
 
 ## License
 

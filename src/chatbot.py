@@ -12,14 +12,7 @@ except ModuleNotFoundError:
 
 
 def get_vector_store(persist_dir=None) -> Chroma:
-    """Load the persisted vector store.
-
-    Args:
-        persist_dir: Directory where the vector store is persisted.
-
-    Returns:
-        Chroma vector store instance.
-    """
+    """Load the persisted vector store."""
     persist_path = Path(config.CHROMA_PERSIST_DIR if persist_dir is None else persist_dir)
     if not persist_path.exists():
         raise FileNotFoundError(
@@ -27,61 +20,112 @@ def get_vector_store(persist_dir=None) -> Chroma:
         )
 
     embeddings = HuggingFaceEmbeddings(model_name=config.EMBEDDING_MODEL)
-    print(f"Loading vector store from {persist_path}...")
     vectorstore = Chroma(
         collection_name=config.CHROMA_COLLECTION,
         persist_directory=str(persist_path),
         embedding_function=embeddings,
         create_collection_if_not_exists=False,
     )
-    if vectorstore._collection.count() == 0:
+
+    count = vectorstore._collection.count()
+    if count == 0:
         raise ValueError(f"Vector store collection '{config.CHROMA_COLLECTION}' is empty.")
-    print("Vector store loaded successfully.")
     return vectorstore
 
 
-def retrieve_context(query: str, vectorstore: Chroma, top_k: int = 3) -> list:
-    """Retrieve relevant context from the vector store.
+def generate_response(query: str, context: str, system_prompt: str) -> str:
+    """Return a placeholder until a provider is selected and configured."""
+    if not context.strip():
+        return "[LLM not yet connected] No relevant context was found for this query."
 
-    Args:
-        query: User's search query.
-        vectorstore: Chroma vector store instance.
-        top_k: Number of chunks to retrieve.
+    # TODO: Insert the provider-specific API call here when the key and model are provided.
+    return f"[LLM not yet connected] Retrieved context:\n{context}"
 
-    Returns:
-        List of retrieved document chunks.
-    """
+
+def retrieve_context(
+    query: str,
+    vectorstore: Chroma,
+    top_k: int | None = None,
+    similarity_threshold: float | None = None,
+) -> list:
+    """Retrieve relevant context while dropping low-similarity matches."""
     if not query.strip():
         raise ValueError("Query must not be empty.")
-    if top_k < 1:
+
+    resolved_top_k = config.TOP_K if top_k is None else top_k
+    resolved_threshold = (
+        config.SIMILARITY_THRESHOLD if similarity_threshold is None else similarity_threshold
+    )
+
+    if resolved_top_k < 1:
         raise ValueError("top_k must be at least 1.")
-    docs = vectorstore.similarity_search(query, k=top_k)
-    return docs
+
+    results = vectorstore.similarity_search_with_score(query, k=resolved_top_k)
+    relevant_docs = []
+    for doc, score in results:
+        # Chroma returns distance scores: lower values are more relevant.
+        if score <= resolved_threshold:
+            doc.metadata["score"] = float(score)
+            relevant_docs.append(doc)
+
+    return relevant_docs
 
 
-def chat(query: str, persist_dir=None) -> dict:
-    """Retrieve context and sources for a question.
+def chat(
+    query: str,
+    persist_dir=None,
+    top_k: int | None = None,
+    similarity_threshold: float | None = None,
+    chat_history: list | None = None,
+    system_prompt: str | None = None,
+) -> dict:
+    """Retrieve context, build response metadata, and keep a future-ready chat history."""
+    if not query or not query.strip():
+        raise ValueError("Query must not be empty.")
 
-    Args:
-        query: User's question.
-        persist_dir: Directory where the vector store is persisted.
-
-    Returns:
-        Retrieval result ready for a future LLM response field.
-    """
-    # Get vector store
     vectorstore = get_vector_store(persist_dir)
+    docs = retrieve_context(query, vectorstore, top_k=top_k, similarity_threshold=similarity_threshold)
 
-    # Retrieve relevant context
-    docs = retrieve_context(query, vectorstore, config.TOP_K)
+    formatted_context = []
+    citations = []
+    sources = []
+    for doc in docs:
+        metadata = doc.metadata or {}
+        source = metadata.get("source")
+        page = metadata.get("page")
+        chunk_index = metadata.get("chunk_index")
+        score = metadata.get("score")
+
+        citation = f"[{source or 'unknown'}"
+        if page is not None:
+            citation += f", page {page}"
+        if chunk_index is not None:
+            citation += f", chunk {chunk_index}"
+        if score is not None:
+            citation += f", score {score:.4f}"
+        citation += "]"
+
+        citations.append(citation)
+        if source:
+            sources.append(source)
+        formatted_context.append(f"{doc.page_content} {citation}")
+
+    context = "\n\n".join(formatted_context)
+    history = list(chat_history or [])
+    history.append({"role": "user", "content": query})
+    response_text = generate_response(query, context, system_prompt or config.DEFAULT_SYSTEM_PROMPT)
+    history.append({"role": "assistant", "content": response_text})
 
     return {
         "question": query,
-        "context": "\n\n".join(doc.page_content for doc in docs),
-        "sources": [doc.metadata.get("source") for doc in docs if doc.metadata.get("source")],
+        "context": context,
+        "sources": list(dict.fromkeys(sources)),
+        "citations": citations,
+        "relevant_found": bool(docs),
+        "response": response_text,
+        "chat_history": history,
     }
 
 
 if __name__ == "__main__":
-    # Default persist directory
     print("Run the API with: uvicorn src.api:app --reload")

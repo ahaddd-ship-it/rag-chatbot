@@ -1,4 +1,5 @@
 from langchain_core.documents import Document
+import pytest
 
 from src import config
 from src import ingest
@@ -75,3 +76,41 @@ def test_embed_and_store_preserves_metadata_and_distinct_sources(tmp_path, monke
     finally:
         config.CHROMA_COLLECTION = original_collection
         ingest.HuggingFaceEmbeddings = original_embeddings
+
+
+def test_ingest_documents_skips_unchanged_files(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    vector_dir = tmp_path / "vectors"
+    data_dir.mkdir()
+    (data_dir / "one.txt").write_text("One document.", encoding="utf-8")
+    (data_dir / "two.md").write_text("Two document.", encoding="utf-8")
+
+    calls = []
+
+    def fake_embed_and_store(chunks, persist_dir):
+        calls.append((chunks, persist_dir))
+        return len(chunks)
+
+    monkeypatch.setattr(ingest, "embed_and_store", fake_embed_and_store)
+
+    first = ingest.ingest_documents(data_dir, vector_dir)
+    second = ingest.ingest_documents(data_dir, vector_dir)
+
+    assert len(first["ingested"]) == 2
+    assert first["skipped"] == []
+    assert second["ingested"] == []
+    assert len(second["skipped"]) == 2
+    assert len(calls) == 2
+
+
+def test_list_documents_in_folder_rejects_missing_folder(tmp_path):
+    with pytest.raises(FileNotFoundError, match="Documents folder does not exist"):
+        ingest.list_documents_in_folder(tmp_path / "missing")
+
+
+def test_load_document_rejects_unsupported_file(tmp_path):
+    file_path = tmp_path / "data.csv"
+    file_path.write_text("not supported", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Unsupported file type"):
+        ingest.load_document(str(file_path))

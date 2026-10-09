@@ -1,7 +1,5 @@
 """RAG Chatbot - Main entry point."""
 
-import os
-
 try:
     from src import config
     from src.chatbot import chat
@@ -13,6 +11,7 @@ except ModuleNotFoundError:
 def main():
     """Run the RAG chatbot."""
     persist_dir = config.CHROMA_PERSIST_DIR
+    chat_history = []
 
     print("=" * 50)
     print("RAG Chatbot - Welcome!")
@@ -25,14 +24,20 @@ def main():
         try:
             user_input = input("You: ").strip()
 
-            if user_input.lower() in ['quit', 'exit', 'q']:
+            if user_input.lower() in ["quit", "exit", "q"]:
                 print("\nChatbot: Goodbye!")
                 break
 
-            # Generate response
-            response = chat(user_input, persist_dir)
+            if not user_input:
+                print("\nChatbot: Please enter a question.")
+                continue
 
-            print(f"\nChatbot: {response}")
+            result = chat(user_input, persist_dir, chat_history=chat_history)
+            chat_history = result["chat_history"]
+
+            print(f"\nChatbot: {result['response']}")
+            if result["sources"]:
+                print(f"Sources: {', '.join(result['sources'])}")
             print()
 
         except Exception as error:
